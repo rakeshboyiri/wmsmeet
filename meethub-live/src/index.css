@@ -1,0 +1,178 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+
+    --radius: 0.75rem;
+
+    /* Meeting room specific */
+    --meeting-bg: 222 47% 7%;
+    --meeting-surface: 222 47% 11%;
+    --meeting-surface-hover: 222 47% 15%;
+    --meeting-border: 222 47% 20%;
+
+    /* Gradient */
+    --gradient-primary: linear-gradient(135deg, hsl(221, 83%, 53%) 0%, hsl(250, 83%, 60%) 100%);
+    --gradient-hero: linear-gradient(180deg, hsl(221, 83%, 97%) 0%, hsl(0, 0%, 100%) 100%);
+
+    /* Shadows */
+    --shadow-soft: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-medium: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 222 47% 15%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 222 47% 15%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 222 47% 15%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 222 47% 20%;
+    --input: 222 47% 20%;
+    --ring: 221 83% 53%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-all duration-200;
+  }
+
+  .btn-destructive {
+    @apply bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-all duration-200;
+  }
+
+  .btn-meeting {
+    @apply bg-meeting-surface text-foreground hover:bg-meeting-surface-hover transition-all duration-200;
+  }
+
+  .card-elevated {
+    @apply bg-card rounded-xl border border-border;
+    box-shadow: var(--shadow-medium);
+  }
+
+  .meeting-room {
+    @apply bg-meeting-bg text-white;
+  }
+
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .animate-pulse-soft {
+    animation: pulseSoft 2s ease-in-out infinite;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes pulseSoft {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+}
