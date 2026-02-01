@@ -1,6 +1,9 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+import socket from "@/socket";
 import { toast } from "sonner";
+
+import { createPeer, addPeer, peers } from "@/webrtc";
 import { MeetingTopBar } from "@/components/meeting/MeetingTopBar";
 import { MeetingGrid } from "@/components/meeting/MeetingGrid";
 import { ControlBar } from "@/components/meeting/ControlBar";
@@ -8,121 +11,146 @@ import { ParticipantsSidebar } from "@/components/meeting/ParticipantsSidebar";
 import { EndMeetingModal } from "@/components/meeting/EndMeetingModal";
 import { Participant } from "@/components/meeting/ParticipantItem";
 
-// Mock participants for demo
-const mockParticipants: Participant[] = [
-  { id: "2", name: "Sarah Johnson", isMuted: true, isHost: false },
-  { id: "3", name: "Mike Chen", isMuted: false, isHost: false },
-  { id: "4", name: "Emily Davis", isMuted: true, isHost: false },
-];
-
 const MeetingRoom = () => {
-  const { id: meetingId } = useParams<{ id: string }>();
+  const { id: meetingId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
-  const { name = "Guest User", isHost = false } = location.state || {};
+  const { state } = useLocation();
+  const { name, isHost } = state || {};
 
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+
+  const [participants, setParticipants] = useState<Participant[]>([]);
   const [isMuted, setIsMuted] = useState(false);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
-  const [isEndMeetingModalOpen, setIsEndMeetingModalOpen] = useState(false);
-  const [participants, setParticipants] = useState<Participant[]>([
-    { id: "1", name, isMuted: false, isHost },
-    ...mockParticipants,
-  ]);
 
-  const meetingLink = `https://wmsmeet.app/meeting/${meetingId}`;
-
-  // Simulate participant activity
+  // 🎥 Get media
   useEffect(() => {
-    const interval = setInterval(() => {
-      setParticipants((prev) =>
-        prev.map((p) => ({
-          ...p,
-          isSpeaking: !p.isMuted && Math.random() > 0.7,
-        }))
-      );
-    }, 2000);
-
-    return () => clearInterval(interval);
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(
+      (stream) => {
+        localStreamRef.current = stream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+      }
+    );
   }, []);
 
-  // Simulate someone joining
+  // 🔥 Join meeting
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      const newParticipant: Participant = {
-        id: "5",
-        name: "Alex Wilson",
-        isMuted: false,
-        isHost: false,
-      };
-      setParticipants((prev) => [...prev, newParticipant]);
-      toast.info("Alex Wilson joined the meeting");
-    }, 5000);
+    if (!meetingId || !name) return navigate("/");
 
-    return () => clearTimeout(timeout);
+    socket.emit("join-meeting", { meetingId, name, isHost });
+
+    socket.on("participants-update", (room) => {
+      const list = Object.entries(room.participants).map(
+        ([id, p]: any) => ({
+          id,
+          name: p.name,
+          isMuted: p.muted,
+          isHost: room.hostId === id,
+        })
+      );
+
+      setParticipants(list);
+
+      // create peers for others
+      list.forEach((p) => {
+        if (p.id === socket.id || peers[p.id]) return;
+
+        const peer = createPeer(
+          p.id,
+          localStreamRef.current!,
+          meetingId!
+        );
+
+        peers[p.id] = peer;
+
+        peer.on("stream", (stream) => {
+          const video = document.createElement("video");
+          video.srcObject = stream;
+          video.autoplay = true;
+          video.playsInline = true;
+          document.body.appendChild(video);
+        });
+      });
+    });
+
+    socket.on("webrtc-signal", ({ from, signal }) => {
+      if (!peers[from]) {
+        peers[from] = addPeer(
+          signal,
+          from,
+          localStreamRef.current!,
+          meetingId!
+        );
+
+        peers[from].on("stream", (stream) => {
+          const video = document.createElement("video");
+          video.srcObject = stream;
+          video.autoplay = true;
+          video.playsInline = true;
+          document.body.appendChild(video);
+        });
+      } else {
+        peers[from].signal(signal);
+      }
+    });
+
+    socket.on("meeting-ended", () => {
+      toast.error("Meeting ended");
+      navigate("/");
+    });
+
+    return () => {
+      socket.off("participants-update");
+      socket.off("webrtc-signal");
+    };
   }, []);
 
   const handleToggleMute = () => {
+    localStreamRef.current?.getAudioTracks().forEach((t) => {
+      t.enabled = !t.enabled;
+    });
     setIsMuted(!isMuted);
-    setParticipants((prev) =>
-      prev.map((p) => (p.id === "1" ? { ...p, isMuted: !isMuted } : p))
-    );
-    toast.success(isMuted ? "Microphone unmuted" : "Microphone muted");
-  };
-
-  const handleToggleScreenShare = () => {
-    setIsScreenSharing(!isScreenSharing);
-    toast.success(
-      isScreenSharing ? "Screen sharing stopped" : "Screen sharing started"
-    );
-  };
-
-  const handleRemoveParticipant = (participantId: string) => {
-    const participant = participants.find((p) => p.id === participantId);
-    setParticipants((prev) => prev.filter((p) => p.id !== participantId));
-    toast.info(`${participant?.name} was removed from the meeting`);
-  };
-
-  const handleEndMeeting = () => {
-    toast.success("Meeting ended for everyone");
-    navigate("/");
   };
 
   return (
     <div className="min-h-screen bg-meeting-bg flex flex-col">
-      <MeetingTopBar meetingId={meetingId || ""} meetingLink={meetingLink} />
+      <MeetingTopBar meetingId={meetingId || ""} meetingLink={window.location.href} />
 
-      <MeetingGrid
-        participants={participants}
-        isScreenSharing={isScreenSharing}
-        screenSharerName={isScreenSharing ? name : undefined}
+      <video
+        ref={localVideoRef}
+        muted
+        autoPlay
+        playsInline
+        className="w-64 rounded-xl"
       />
+
+      <MeetingGrid participants={participants}  />
 
       <ControlBar
         isMuted={isMuted}
-        isScreenSharing={isScreenSharing}
+        isScreenSharing={false}
         isHost={isHost}
         participantCount={participants.length}
         onToggleMute={handleToggleMute}
-        onToggleScreenShare={handleToggleScreenShare}
-        onToggleParticipants={() =>
-          setIsParticipantsPanelOpen(!isParticipantsPanelOpen)
-        }
-        onEndMeeting={() => setIsEndMeetingModalOpen(true)}
+        onToggleScreenShare={() => {}}
+        onToggleParticipants={() => {}}
+        onEndMeeting={() => socket.emit("end-meeting", { meetingId })}
       />
 
       <ParticipantsSidebar
-        isOpen={isParticipantsPanelOpen}
+        isOpen={false}
         participants={participants}
         isCurrentUserHost={isHost}
-        onClose={() => setIsParticipantsPanelOpen(false)}
-        onRemoveParticipant={handleRemoveParticipant}
+        onClose={() => {}}
+        onRemoveParticipant={() => {}}
       />
 
       <EndMeetingModal
-        isOpen={isEndMeetingModalOpen}
-        onClose={() => setIsEndMeetingModalOpen(false)}
-        onConfirm={handleEndMeeting}
+        isOpen={false}
+        onClose={() => {}}
+        onConfirm={() => {}}
       />
     </div>
   );
